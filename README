@@ -1,4 +1,3 @@
-
 #
 # Maps arbitrary Ruby objects to basic structures
 # Unmaps basic structures to arbitrary objects,
@@ -14,16 +13,3 @@
 #
 # Name inspired by "famous" German cartographer Hermann Haack (1872 - 1966).
 #
-module DataHaack
-  EMPTY_STRING = ''.freeze
-  EMPTY_ARRAY = [ ].freeze
-  EMPTY_HASH = { }.freeze
-
-  # Debugging support.
-  VERBOSE_MAP = false
-  VERBOSE_UNMAP = false
-end
-
-require 'data_haack/mapper'
-require 'data_haack/mapping'
-
