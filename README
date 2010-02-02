@@ -1,7 +1,13 @@
 #
+# = DataHaack
+#
 # Maps arbitrary Ruby objects to basic structures
 # Unmaps basic structures to arbitrary objects,
 # based on Mapping specifed at particular.
+#
+# Name inspired by "famous" German cartographer Hermann Haack (1872 - 1966).
+#
+# = Mappings
 #
 # Each Mapping implements a mapping for a:
 # * Class
@@ -11,5 +17,85 @@
 # * association on an object.
 #
 #
-# Name inspired by "famous" German cartographer Hermann Haack (1872 - 1966).
+# Basic structures contain:
+# * String
+# * Numeric
+# * Symbol
+# * Array
+# * Hash
+# * true, false, nil
+#
+#
+# = Example
+#
+# Value mappings assume that object being mapped and unmapped are "value" objects,
+# where their equality is more important then their identity.  Ruby Time objects
+# a good example of a value object, Time objects are interchangable as long as they
+# are equal.
+#
+# = Mapping Sets
+#
+# A DataHaack::MappingSet contains mappings indexed by Class or path in the object graph.
+# A builder DSL is used to create a MappingSet:
+#
+# Map a Time object to Floats (Unix epoch) and back again.
+#
+#   require 'data_haack'
+#   require 'pp'
+#   ms = DataHaack::MappingSet.build do 
+#     value Time do
+#       map :to_f # calls Time#to_f
+#       unmap :at # calls Time.at
+#     end
+#   end
+#   now = Time.now
+#   data = ms.mapper.map(now)
+#   pp [ now, :'=>', data ]
+#   obj = ms.mapper.unmap!(nil, data, Time)
+#   pp [ data, :'=>', obj ]
+#
+# Produces:
+#
+#   [Fri Jan 29 17:58:50 -0600 2010, :"=>", 1264809530.51661]
+#   [1264809530.51661, :"=>", Fri Jan 29 17:58:50 -0600 2010]
+#
+# = Collections
+#
+# DataHaack::Mapper handles Array and Hash objects as simple containers, and
+# recursively applies the mappings to their elements.
+#
+#   require 'data_haack'
+#   require 'pp'
+#   
+#   ms = DataHaack::MappingSet.build do 
+#     value Time do
+#       map :to_f # calls Time#to_f
+#       unmap do | val |
+#         val && Time.at(val)
+#       end
+#     end
+#   end
+#   
+#   now = Time.now
+#   
+#   obj = [ now, now, nil, now ]
+#   data = ms.mapper.map(obj)
+#   pp [ now, :'=>', data ]
+#   
+#   unmapped = ms.mapper.unmap!(nil, data, Time)
+#   pp [ data, :'=>', unmapped ]
+#
+# Result:
+#
+#   [Tue Feb 02 08:36:20 -0600 2010,
+#    :"=>",
+#    [1265121380.34376, 1265121380.34376, nil, 1265121380.34376]]
+#   [[1265121380.34376, 1265121380.34376, nil, 1265121380.34376],
+#    :"=>",
+#    [Tue Feb 02 08:36:20 -0600 2010,
+#     Tue Feb 02 08:36:20 -0600 2010,
+#     nil,
+#     Tue Feb 02 08:36:20 -0600 2010]]
+#
+# Note the explicit handling of nil values to and from Time values objects.
 #

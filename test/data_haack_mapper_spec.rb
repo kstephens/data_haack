@@ -1,41 +1,49 @@
 require 'data_haack'
 
 require 'pp'
-
-module DataHaack
-  module Test
-    class Base
-      # Avoid warnings.
-      alias :id :object_id
-
-      # See #creater.
-      def self.create *args
-        new
-      end
-    end
-
-    class A < Base
-      # Attributes:
-      attr_accessor :name, :time
-
-      # Associations:
-      attr_accessor :b
-    end
-
-    class B < Base
-      # Attributes:
-      attr_accessor :x, :y
-
-      # Associations:
-      attr_accessor :sub_b
-    end
-  end
-end
-
+require 'data_haack/test/base'
 
 describe "DataHaack::Mapper" do
   A = DataHaack::Test::A
   B = DataHaack::Test::B
+
+  it 'should map simple values.' do
+    ms = DataHaack::MappingSet.build do
+      value Time do
+        map :to_f
+        unmap :at
+      end
+    end
+    now = Time.now
+    data = ms.mapper.map(now)
+    data.should be_an_instance_of Float
+    data.should == now.to_f
+
+    obj = ms.mapper.unmap!(nil, data, Time)
+    obj.should be_an_instance_of Time
+    obj.to_f.should == now.to_f
+  end
+
+  it 'should map Array values.' do
+    ms = DataHaack::MappingSet.build do
+      value Time do
+        map :to_f
+        unmap do | val |
+          val && Time.at(val)
+        end
+      end
+    end
+    now = Time.now
+    data = ms.mapper.map( [ now, now, nil, now ])
+    data.should be_an_instance_of Array
+    data.should == [ now.to_f, now.to_f, nil, now.to_f ]
+
+    obj = ms.mapper.unmap!(nil, data, Time)
+    obj.should be_an_instance_of Array
+    obj.each { | x | x && (x.should be_an_instance_of(Time)) }
+    obj.should == [ now, now, nil, now ]
+  end
+
 
   def a
     a = A.new
@@ -45,63 +53,70 @@ describe "DataHaack::Mapper" do
     b = B.new
     b.x = 1
     b.y = 2
-    a.b << b
+    a << b
     b = B.new
     b.x = 3
     b.sub_b = B.new
     b.sub_b.y = 4
-    a.b << b
+    a << b
 
     # pp [ 'Data structure to map', a ]
 
     a
   end
 
-  def cls_maps
-    cls_maps = { 
-      A => {
-        :attributes => [ :name, :time ],
-        :associations => [ [ B, :b ] ],
-      },
-      B => {
-        :attributes => [ :x, :y ],
-        :associations => [ [ B, :sub_b ] ],
-      },
-    }
-    cls_maps = DataHaack::Mapping.create_class_to_mapping(cls_maps)
-    # pp cls_maps
-    cls_maps
+  def mapping_set
+    mapping_set = DataHaack::MappingSet.build do
+      cls A do
+        attributes :name, :time
+        association :b do
+          cls B
+        end
+      end
+      cls B do
+        attributes :x, :y
+        association :sub_b do
+          cls B
+        end
+      end
+    end
+    
+    # pp mapping_set
+
+    mapping_set
   end
 
-  def cls_maps_Time_to_f
-    cls_maps = self.cls_maps
+  def mapping_set_Time_to_f
+    mapping_set = self.mapping_set
 
     # Map Time using to_f.
-    cls_maps[Time] = 
-      DataHaack::ValueMapping.new(:cls => Time, 
-                                  :getter => lambda { | val |      val.to_f }, 
-                                  :setter => lambda { | obj, val | Time.at(val) }
-                                  )
-    # pp cls_maps
-    cls_maps
+    mapping_set.build do
+      value Time do
+        map :to_f # Time#to_f
+        unmap :at # Time.at
+      end
+    end
+
+    # pp mapping_set
+    mapping_set
   end
   
-  def dhm cls_maps = nil
-    cls_maps ||= self.cls_maps
+  def dhm mapping_set = nil
+    mapping_set ||= self.mapping_set
     # Map Time using to_s (default behavior)
-    dhm = DataHaack::Mapper.new(:class_to_mapping => cls_maps)
+    dhm = DataHaack::Mapper.new(:mapping_set => mapping_set)
     dhm
   end
 
 
   def do_basic_map
     a = self.a
-    cls_maps = self.cls_maps_Time_to_f
+    mapping_set = self.mapping_set_Time_to_f
 
-    dhm = self.dhm cls_maps
+    dhm = self.dhm mapping_set
     d = dhm.map(a)
 
-    [ cls_maps, a, d ]
+    [ mapping_set, a, d ]
   end
 
 
@@ -124,7 +139,7 @@ describe "DataHaack::Mapper" do
   end
 
   it 'should map Time using #to_f.' do
-    cls_maps, a, d = do_basic_map
+    mapping_set, a, d = do_basic_map
 
     # pp [ 'Map A#time using to_f', d ]
 
@@ -155,17 +170,21 @@ describe "DataHaack::Mapper" do
 
   it 'should map paths using Time#to_i' do
     a = self.a
-    cls_maps = self.cls_maps_Time_to_f
+    mapping_set = self.mapping_set_Time_to_f
 
-    path_maps = { }
-    path_maps['.b[1].x'] = 
-      DataHaack::ValueMapping.new(:cls => Integer, 
-                                  :getter => lambda { | val |      val.to_s }, 
-                                  :setter => lambda { | obj, val | val.to_i }
-                                  )
-    
-    dhm = DataHaack::Mapper.new(:class_to_mapping => cls_maps,
-                                :path_to_mapping => path_maps)
+    mapping_set.build do
+      path '.b[1].x' do
+        # cls Integer
+        map do | val |
+          val.to_s
+        end
+        unmap do | val |
+          val.to_i
+        end
+      end
+    end
+
+    dhm = DataHaack::Mapper.new(:mapping_set => mapping_set)
 
     d = dhm.map(a)
     # pp [ 'Map .b[1].x using to_s', d ]
@@ -196,12 +215,14 @@ describe "DataHaack::Mapper" do
   end
 
   it 'should unmap! isometric data' do
-    cls_maps, a, d = do_basic_map
+    mapping_set, a, d = do_basic_map
 
     d[:name] = :AChanged
     d[:b][1][:sub_b][:x] = 5
 
-    dhm = self.dhm cls_maps
+    # pp [ 'Before unmap!', a ]
+
+    dhm = self.dhm mapping_set
     dhm.unmap!(a, d)
 
     # pp [ 'Data structure after unmap!', a ]
@@ -220,13 +241,13 @@ describe "DataHaack::Mapper" do
   end
 
   it 'should unmap! new objects through empty associations and attributes' do
-    cls_maps, a, d = do_basic_map
+    mapping_set, a, d = do_basic_map
 
     a.b = nil
     a.time = nil
     # pp [ 'Data structure after a.b = nil and a.time = nil', a ]
 
-    dhm = self.dhm cls_maps
+    dhm = self.dhm mapping_set
     dhm.unmap!(a, d)
 
     # pp [ 'Data structure after unmap!', a ]
@@ -244,6 +265,7 @@ describe "DataHaack::Mapper" do
     a.b[1].sub_b.x.should     == nil
     a.b[1].sub_b.y.should     == 4
   end
+
 end
 
 

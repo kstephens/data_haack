@@ -8,8 +8,12 @@ begin
   require 'spec/rake/spectask'
  
   SPEC_RUBY_OPTS = [ '-I', File.expand_path('lib') ]
-  SPEC_FILES = FileList['test/**/*_spec.rb']
-  SPEC_OPTS = ['--color', '--backtrace', '-f n']
+  SPEC_FILES = FileList[ENV['test'] || 'test/**/*_spec.rb']
+  SPEC_OPTS = ['--backtrace', '-f n']
+  if $stdout.tty? && ENV['TERM'] != 'dumb'
+    # $stderr.puts ENV['TERM']
+    SPEC_OPTS << '--color' 
+  end
 
   Spec::Rake::SpecTask.new("spec") do |t|
     t.ruby_opts = SPEC_RUBY_OPTS
