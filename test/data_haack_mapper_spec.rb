@@ -4,8 +4,8 @@ require 'pp'
 require 'data_haack/test/base'
 
 describe "DataHaack::Mapper" do
-  A = DataHaack::Test::A
-  B = DataHaack::Test::B
+  $A = DataHaack::Test::A
+  $B = DataHaack::Test::B
 
   it 'should map simple values.' do
     ms = DataHaack::MappingSet.build do
@@ -36,27 +36,31 @@ describe "DataHaack::Mapper" do
     now = Time.now
     data = ms.mapper.map( [ now, now, nil, now ])
     data.should be_an_instance_of Array
-    data.should == [ now.to_f, now.to_f, nil, now.to_f ]
+    expected = [ now.to_f, now.to_f, nil, now.to_f ]
+    data.map{|x| x.to_s}.should == expected.map{|x| x.to_s}
+    data.map{|x| x.class}.should == expected.map{|x| x.class}
 
     obj = ms.mapper.unmap!(nil, data, Time)
     obj.should be_an_instance_of Array
     obj.each { | x | x && (x.should be_an_instance_of(Time)) }
-    obj.should == [ now, now, nil, now ]
+    expected = [ now, now, nil, now ]
+    obj.map{|x| x.to_s}.should == expected.map{|x| x.to_s}
+    obj.map{|x| x.class}.should == expected.map{|x| x.class}
   end
 
 
   def a
-    a = A.new
+    a = $A.new
     a.name = :A
     a.b = [ ]
     a.time = Time.now
-    b = B.new
+    b = $B.new
     b.x = 1
     b.y = 2
     a << b
-    b = B.new
+    b = $B.new
     b.x = 3
-    b.sub_b = B.new
+    b.sub_b = $B.new
     b.sub_b.y = 4
     a << b
 
@@ -67,16 +71,16 @@ describe "DataHaack::Mapper" do
 
   def mapping_set
     mapping_set = DataHaack::MappingSet.build do
-      cls A do
+      cls $A do
         attributes :name, :time
         association :b do
-          cls B
+          cls $B
         end
       end
-      cls B do
+      cls $B do
         attributes :x, :y
         association :sub_b do
-          cls B
+          cls $B
         end
       end
     end

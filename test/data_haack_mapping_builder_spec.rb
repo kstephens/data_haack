@@ -4,21 +4,21 @@ require 'pp'
 require 'data_haack/test/base'
 
 describe "DataHaack::Mapping::Builder" do
-  A = DataHaack::Test::A
-  B = DataHaack::Test::B
+  $A = DataHaack::Test::A
+  $B = DataHaack::Test::B
 
   def a
-    a = A.new
+    a = $A.new
     a.name = :A
     a.b = [ ]
     a.time = Time.now
-    b = B.new
+    b = $B.new
     b.x = 1
     b.y = 2
     a << b
-    b = B.new
+    b = $B.new
     b.x = 3
-    b.sub_b = B.new
+    b.sub_b = $B.new
     b.sub_b.y = 4
     a << b
     
@@ -27,11 +27,11 @@ describe "DataHaack::Mapping::Builder" do
 
   def mapping_set
     ms = DataHaack::MappingSet.build do 
-      cls A do
+      cls $A do
         attributes :name, :x
         attribute  :y, :setter => nil
         association :b do
-          cls B
+          cls $B
           creater do | *args |
             b = super
             b.index = 999
@@ -55,7 +55,7 @@ describe "DataHaack::Mapping::Builder" do
         end
       end
       
-      cls B do
+      cls $B do
         attributes :x, :y
         association :sub_b
       end
@@ -77,8 +77,8 @@ describe "DataHaack::Mapping::Builder" do
     ms = mapping_set
 
     ms.class_to_mapping.size.should == 3
-    (a = ms.class_to_mapping[A]).should be_an_instance_of DataHaack::ClassMapping
-    (b = ms.class_to_mapping[B]).should be_an_instance_of DataHaack::ClassMapping
+    (a = ms.class_to_mapping[$A]).should be_an_instance_of DataHaack::ClassMapping
+    (b = ms.class_to_mapping[$B]).should be_an_instance_of DataHaack::ClassMapping
     a.attributes.map{|x| x.name}.sort_by{|x| x.to_s}.should == [ :c, :name, :x, :y, ]
     a.attributes.named(:name).name.should == :name
     a.attributes.named(:asdkfjasldkf).should == nil
